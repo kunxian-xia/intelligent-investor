@@ -32,6 +32,23 @@ TABLES = {
                                   fiscal_period, form, accession_number, frame
                            FROM facts
                            ORDER BY ticker, concept, end_date DESC""",
+    "Metric Definitions": """SELECT * FROM operating_metric_definitions
+                               ORDER BY metric_pack, metric_key""",
+    "Company Metric Config": """SELECT c.ticker, c.metric_key, d.display_name,
+                                         d.metric_pack, c.enabled, c.notes
+                                  FROM company_metric_config c
+                                  JOIN operating_metric_definitions d USING(metric_key)
+                                  ORDER BY c.ticker, d.metric_pack, c.metric_key""",
+    "Metric Coverage": "SELECT * FROM metric_coverage ORDER BY ticker, metric_key",
+    "Operating Metrics": """SELECT o.ticker, o.metric_key, d.display_name,
+                                     o.period_start, o.period_end, o.period_type,
+                                     o.value, o.unit, o.scope_json, o.filed_date,
+                                     o.accession_number, o.source_url, o.evidence_text,
+                                     o.source_locator, o.extraction_method, o.confidence,
+                                     o.definition_version
+                              FROM operating_metric_observations o
+                              JOIN operating_metric_definitions d USING(metric_key)
+                              ORDER BY o.ticker, o.metric_key, o.period_end DESC""",
     "Latest Sources": "SELECT * FROM source_items ORDER BY published_at DESC",
 }
 

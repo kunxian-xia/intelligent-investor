@@ -75,6 +75,14 @@ investor add-feed sec-updates "https://example.com/sec-updates.xml"
 investor refresh-feeds
 ```
 
+Enable a sector-specific operating KPI pack. Unlike generic financial facts, these
+observations retain metric definitions, scope, filing evidence, extraction method,
+and confidence for reliable model use:
+
+```bash
+investor configure-metrics PBR upstream_oil
+```
+
 Use the actual feed URLs published by each source. Keeping these configurable avoids
 embedding an unstable URL or assuming redistribution rights for commercial news.
 

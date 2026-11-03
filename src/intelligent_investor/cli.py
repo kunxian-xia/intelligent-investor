@@ -7,6 +7,7 @@ from .config import load_settings, require_sec_identity
 from .db import connect, initialize
 from .export import export_excel, sync_status
 from .feeds import FeedService
+from .metrics import METRIC_PACKS, configure_metric_pack
 from .sec import SecClient
 from .service import RefreshService
 
@@ -44,6 +45,13 @@ def parser() -> argparse.ArgumentParser:
         "refresh-feeds", help="Pull configured RSS/Atom sources and export Excel"
     )
     refresh_feeds.set_defaults(handler=run_refresh_feeds)
+
+    configure = subcommands.add_parser(
+        "configure-metrics", help="Enable a sector operating-metric pack for a company"
+    )
+    configure.add_argument("ticker")
+    configure.add_argument("metric_pack", choices=sorted(METRIC_PACKS))
+    configure.set_defaults(handler=run_configure_metrics)
     return command
 
 
@@ -123,6 +131,17 @@ def run_refresh_feeds(_args: argparse.Namespace) -> int:
         revision, count = FeedService(connection, settings.user_agent).refresh()
         _, rows, _ = export_excel(connection, settings.excel_path)
         print(f"Feed refresh complete: revision {revision}, {count} items, {rows} Excel rows")
+        return 0
+    finally:
+        connection.close()
+
+
+def run_configure_metrics(args: argparse.Namespace) -> int:
+    settings, connection = database()
+    try:
+        count = configure_metric_pack(connection, args.ticker, args.metric_pack)
+        export_excel(connection, settings.excel_path)
+        print(f"Enabled {count} {args.metric_pack} metrics for {args.ticker.upper()}")
         return 0
     finally:
         connection.close()

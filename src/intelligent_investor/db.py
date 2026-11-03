@@ -90,6 +90,50 @@ CREATE TABLE IF NOT EXISTS source_items (
     UNIQUE(source_name, external_id)
 );
 
+CREATE TABLE IF NOT EXISTS operating_metric_definitions (
+    metric_key TEXT PRIMARY KEY,
+    metric_pack TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    default_unit TEXT NOT NULL,
+    cadence TEXT NOT NULL,
+    preferred_direction TEXT NOT NULL,
+    definition_version TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS company_metric_config (
+    ticker TEXT NOT NULL,
+    metric_key TEXT NOT NULL REFERENCES operating_metric_definitions(metric_key),
+    enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1)),
+    notes TEXT,
+    PRIMARY KEY(ticker, metric_key)
+);
+
+CREATE TABLE IF NOT EXISTS operating_metric_observations (
+    id INTEGER PRIMARY KEY,
+    ticker TEXT NOT NULL,
+    metric_key TEXT NOT NULL REFERENCES operating_metric_definitions(metric_key),
+    period_start TEXT,
+    period_end TEXT NOT NULL,
+    period_type TEXT NOT NULL,
+    value REAL NOT NULL,
+    unit TEXT NOT NULL,
+    scope_json TEXT NOT NULL DEFAULT '{}',
+    accession_number TEXT NOT NULL REFERENCES filings(accession_number),
+    filed_date TEXT NOT NULL,
+    source_url TEXT NOT NULL,
+    evidence_text TEXT,
+    source_locator TEXT,
+    extraction_method TEXT NOT NULL,
+    confidence REAL NOT NULL CHECK(confidence >= 0 AND confidence <= 1),
+    definition_version TEXT NOT NULL,
+    inserted_at TEXT NOT NULL,
+    UNIQUE(ticker, metric_key, period_end, scope_json, accession_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_operating_metrics_lookup
+ON operating_metric_observations(ticker, metric_key, period_end DESC);
+
 CREATE TABLE IF NOT EXISTS exports (
     path TEXT PRIMARY KEY,
     data_revision INTEGER NOT NULL,
@@ -136,6 +180,28 @@ SELECT
 FROM companies c;
 """
 
+METRIC_COVERAGE_VIEW = """
+CREATE VIEW metric_coverage AS
+SELECT
+    c.ticker,
+    c.metric_key,
+    d.metric_pack,
+    d.display_name,
+    d.cadence,
+    d.default_unit,
+    COUNT(o.id) AS observation_count,
+    MAX(o.period_end) AS latest_period_end,
+    MAX(o.filed_date) AS latest_filed_date,
+    CASE WHEN COUNT(o.id) = 0 THEN 'missing' ELSE 'available' END AS metric_status
+FROM company_metric_config c
+JOIN operating_metric_definitions d USING(metric_key)
+LEFT JOIN operating_metric_observations o
+  ON o.ticker = c.ticker AND o.metric_key = c.metric_key
+WHERE c.enabled = 1
+GROUP BY c.ticker, c.metric_key, d.metric_pack, d.display_name,
+         d.cadence, d.default_unit;
+"""
+
 
 def connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -166,6 +232,11 @@ def initialize(connection: sqlite3.Connection) -> None:
     )
     connection.execute("DROP VIEW IF EXISTS data_quality")
     connection.executescript(DATA_QUALITY_VIEW)
+    from .metrics import seed_metric_definitions
+
+    seed_metric_definitions(connection)
+    connection.execute("DROP VIEW IF EXISTS metric_coverage")
+    connection.executescript(METRIC_COVERAGE_VIEW)
     connection.commit()
 
 
