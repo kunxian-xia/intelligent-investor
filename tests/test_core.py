@@ -78,6 +78,23 @@ def test_recent_filings_filters_forms() -> None:
     assert [item["accessionNumber"] for item in recent_filings(payload)] == ["a", "c"]
 
 
+def test_recent_filings_keeps_only_structured_foreign_interim_reports() -> None:
+    payload = {
+        "filings": {
+            "recent": {
+                "accessionNumber": ["news", "results"],
+                "filingDate": ["2026-01-01", "2026-01-02"],
+                "reportDate": ["", "2025-12-31"],
+                "form": ["6-K", "6-K/A"],
+                "primaryDocument": ["news.htm", "results.htm"],
+                "primaryDocDescription": ["6-K", "6-K/A"],
+                "isXBRL": [0, 1],
+            }
+        }
+    }
+    assert [item["accessionNumber"] for item in recent_filings(payload)] == ["results"]
+
+
 def test_iter_facts_preserves_financial_context() -> None:
     payload = {
         "facts": {
@@ -112,6 +129,7 @@ def test_iter_facts_preserves_financial_context() -> None:
 
 def test_common_us_gaap_concept_is_standardized() -> None:
     assert classify_concept("us-gaap", "Assets") == ("balance_sheet", "total_assets")
+    assert classify_concept("ifrs-full", "Revenue") == ("income_statement", "revenue")
     assert classify_concept("custom", "Assets") == (None, None)
 
 
@@ -129,6 +147,8 @@ def test_refresh_stores_filing_and_standardized_fact(tmp_path) -> None:
                         "reportDate": ["2023-12-31"],
                         "form": ["10-K"],
                         "primaryDocument": ["report.htm"],
+                        "primaryDocDescription": ["10-K"],
+                        "isXBRL": [1],
                     }
                 }
             }
@@ -171,3 +191,7 @@ def test_refresh_stores_filing_and_standardized_fact(tmp_path) -> None:
     assert revision == 1
     assert tuple(row) == ("total_assets", 100)
     assert connection.execute("SELECT count(*) FROM filings").fetchone()[0] == 1
+    quality = connection.execute(
+        "SELECT fact_status, download_failures FROM data_quality WHERE ticker = 'TEST'"
+    ).fetchone()
+    assert tuple(quality) == ("current", 0)

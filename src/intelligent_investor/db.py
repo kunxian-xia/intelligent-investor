@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS filings (
     filing_date TEXT NOT NULL,
     report_date TEXT,
     primary_document TEXT,
+    primary_doc_description TEXT,
+    is_xbrl INTEGER NOT NULL DEFAULT 0,
     source_url TEXT NOT NULL,
     local_path TEXT,
     downloaded_at TEXT,
@@ -95,6 +97,43 @@ CREATE TABLE IF NOT EXISTS exports (
     row_count INTEGER NOT NULL,
     sha256 TEXT NOT NULL
 );
+
+"""
+
+DATA_QUALITY_VIEW = """
+CREATE VIEW data_quality AS
+SELECT
+    c.ticker,
+    c.name,
+    (SELECT MAX(f.filing_date)
+       FROM filings f
+      WHERE f.cik = c.cik AND f.is_xbrl = 1) AS latest_structured_filing_date,
+    (SELECT MAX(x.filed_date) FROM facts x
+      WHERE x.cik = c.cik) AS latest_any_fact_filed_date,
+    (SELECT MAX(x.filed_date) FROM facts x
+      WHERE x.cik = c.cik AND x.standardized_metric IS NOT NULL
+    ) AS latest_standardized_fact_filed_date,
+    CAST(
+        julianday((SELECT MAX(f.filing_date) FROM filings f
+                    WHERE f.cik = c.cik AND f.is_xbrl = 1))
+        - julianday((SELECT MAX(x.filed_date) FROM facts x
+                      WHERE x.cik = c.cik AND x.standardized_metric IS NOT NULL))
+        AS INTEGER
+    ) AS aggregate_lag_days,
+    CASE
+        WHEN (SELECT MAX(x.filed_date) FROM facts x
+               WHERE x.cik = c.cik AND x.standardized_metric IS NOT NULL) IS NULL
+            THEN 'missing'
+        WHEN (SELECT MAX(x.filed_date) FROM facts x
+               WHERE x.cik = c.cik AND x.standardized_metric IS NOT NULL)
+             < (SELECT MAX(f.filing_date) FROM filings f
+                 WHERE f.cik = c.cik AND f.is_xbrl = 1)
+            THEN 'stale'
+        ELSE 'current'
+    END AS fact_status,
+    (SELECT COUNT(*) FROM filings f
+      WHERE f.cik = c.cik AND f.download_error IS NOT NULL) AS download_failures
+FROM companies c;
 """
 
 
@@ -110,6 +149,8 @@ def initialize(connection: sqlite3.Connection) -> None:
     connection.executescript(SCHEMA)
     # Small additive migrations keep local databases usable as the schema evolves.
     _ensure_column(connection, "filings", "download_error", "TEXT")
+    _ensure_column(connection, "filings", "primary_doc_description", "TEXT")
+    _ensure_column(connection, "filings", "is_xbrl", "INTEGER NOT NULL DEFAULT 0")
     _ensure_column(connection, "facts", "observation_key", "TEXT")
     _ensure_column(connection, "facts", "statement", "TEXT")
     _ensure_column(connection, "facts", "standardized_metric", "TEXT")
@@ -123,6 +164,8 @@ def initialize(connection: sqlite3.Connection) -> None:
         """CREATE INDEX IF NOT EXISTS idx_standard_facts_lookup
            ON facts(ticker, standardized_metric, end_date DESC)"""
     )
+    connection.execute("DROP VIEW IF EXISTS data_quality")
+    connection.executescript(DATA_QUALITY_VIEW)
     connection.commit()
 
 

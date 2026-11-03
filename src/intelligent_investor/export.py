@@ -15,6 +15,7 @@ from .db import current_revision
 
 
 TABLES = {
+    "Data Quality": "SELECT * FROM data_quality ORDER BY ticker",
     "Companies": "SELECT * FROM companies ORDER BY ticker",
     "Feeds": "SELECT * FROM feeds ORDER BY name",
     "Filings": "SELECT * FROM filings ORDER BY ticker, filing_date DESC",

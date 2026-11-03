@@ -13,6 +13,10 @@ recent annual and quarterly reports, and creates a revision-matched Excel snapsh
   fiscal year, and filing date. Restatements remain distinguishable.
 - Maps a conservative set of common US-GAAP concepts into income statement,
   balance sheet, and cash-flow metrics while retaining the original concepts.
+- Supports IFRS foreign private issuers such as Petrobras, including XBRL-tagged
+  interim 6-K filings while excluding ordinary 6-K news announcements.
+- Publishes a `data_quality` view and Excel worksheet that flag when SEC's
+  aggregate company-facts feed trails a newer structured filing.
 - Exports companies, filings, facts, and source items to `data/financials.xlsx`.
 - Writes the same data revision to SQLite and Excel and reports when Excel is stale.
 

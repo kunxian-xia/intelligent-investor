@@ -11,7 +11,17 @@ from .sec import Company, SecClient
 from .taxonomy import classify_concept
 
 
-FORMS = {"10-K", "10-Q", "10-K/A", "10-Q/A", "20-F", "20-F/A", "40-F"}
+FORMS = {
+    "10-K",
+    "10-Q",
+    "10-K/A",
+    "10-Q/A",
+    "20-F",
+    "20-F/A",
+    "40-F",
+    "6-K",
+    "6-K/A",
+}
 
 
 def utc_now() -> str:
@@ -26,11 +36,15 @@ def recent_filings(submissions: dict[str, Any]) -> Iterable[dict[str, Any]]:
         "reportDate",
         "form",
         "primaryDocument",
+        "primaryDocDescription",
+        "isXBRL",
     )
     length = len(recent.get("accessionNumber", []))
     for index in range(length):
         row = {key: recent.get(key, [None] * length)[index] for key in keys}
-        if row["form"] in FORMS and row["primaryDocument"]:
+        is_interim_foreign_report = row["form"] in {"6-K", "6-K/A"}
+        is_downloadable = not is_interim_foreign_report or bool(row["isXBRL"])
+        if row["form"] in FORMS and row["primaryDocument"] and is_downloadable:
             yield row
 
 
@@ -93,11 +107,13 @@ class RefreshService:
                     self.connection.execute(
                         """INSERT INTO filings(
                                accession_number, cik, ticker, form, filing_date, report_date,
-                               primary_document, source_url
-                           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                               primary_document, primary_doc_description, is_xbrl, source_url
+                           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                            ON CONFLICT(accession_number) DO UPDATE SET
                                form=excluded.form, filing_date=excluded.filing_date,
                                report_date=excluded.report_date, primary_document=excluded.primary_document,
+                               primary_doc_description=excluded.primary_doc_description,
+                               is_xbrl=excluded.is_xbrl,
                                source_url=excluded.source_url""",
                         (
                             accession,
@@ -107,6 +123,8 @@ class RefreshService:
                             row["filingDate"],
                             row["reportDate"],
                             row["primaryDocument"],
+                            row["primaryDocDescription"],
+                            int(bool(row["isXBRL"])),
                             source_url,
                         ),
                     )

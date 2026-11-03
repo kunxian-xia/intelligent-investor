@@ -27,8 +27,40 @@ STANDARD_METRICS: dict[str, tuple[str, str]] = {
     "PaymentsForRepurchaseOfCommonStock": ("cash_flow", "share_repurchases"),
 }
 
+IFRS_STANDARD_METRICS: dict[str, tuple[str, str]] = {
+    "Revenue": ("income_statement", "revenue"),
+    "GrossProfit": ("income_statement", "gross_profit"),
+    "ProfitLossFromOperatingActivities": ("income_statement", "operating_income"),
+    "ProfitLoss": ("income_statement", "net_income"),
+    "DilutedEarningsLossPerShare": ("income_statement", "diluted_eps"),
+    "BasicAndDilutedEarningsLossPerShare": ("income_statement", "diluted_eps"),
+    "Assets": ("balance_sheet", "total_assets"),
+    "CurrentAssets": ("balance_sheet", "current_assets"),
+    "Liabilities": ("balance_sheet", "total_liabilities"),
+    "CurrentLiabilities": ("balance_sheet", "current_liabilities"),
+    "EquityAttributableToOwnersOfParent": ("balance_sheet", "stockholders_equity"),
+    "Equity": ("balance_sheet", "total_equity"),
+    "CashAndCashEquivalents": ("balance_sheet", "cash_and_equivalents"),
+    "CurrentPortionOfLongtermBorrowings": ("balance_sheet", "current_long_term_debt"),
+    "LongtermBorrowings": ("balance_sheet", "long_term_debt"),
+    "CashFlowsFromUsedInOperatingActivities": ("cash_flow", "operating_cash_flow"),
+    "CashFlowsFromUsedInInvestingActivities": ("cash_flow", "investing_cash_flow"),
+    "CashFlowsFromUsedInFinancingActivities": ("cash_flow", "financing_cash_flow"),
+    "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities": (
+        "cash_flow",
+        "capital_expenditure",
+    ),
+    "DividendsPaid": ("cash_flow", "dividends_paid"),
+    "DividendsPaidToEquityHoldersOfParentClassifiedAsFinancingActivities": (
+        "cash_flow",
+        "dividends_paid",
+    ),
+}
+
 
 def classify_concept(taxonomy: str, concept: str) -> tuple[str | None, str | None]:
-    if taxonomy != "us-gaap":
-        return None, None
-    return STANDARD_METRICS.get(concept, (None, None))
+    if taxonomy == "us-gaap":
+        return STANDARD_METRICS.get(concept, (None, None))
+    if taxonomy == "ifrs-full":
+        return IFRS_STANDARD_METRICS.get(concept, (None, None))
+    return None, None
