@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 
 from .config import load_settings, require_sec_identity
 from .db import connect, initialize
 from .export import export_excel, sync_status
 from .feeds import FeedService
-from .metrics import METRIC_PACKS, configure_metric_pack
+from .metrics import METRIC_PACKS, configure_metric_pack, derive_metric, validate_metrics
 from .sec import SecClient
 from .service import RefreshService
 
@@ -52,6 +53,21 @@ def parser() -> argparse.ArgumentParser:
     configure.add_argument("ticker")
     configure.add_argument("metric_pack", choices=sorted(METRIC_PACKS))
     configure.set_defaults(handler=run_configure_metrics)
+
+    derive = subcommands.add_parser(
+        "derive-metric", help="Calculate a metric from evidence-backed input observations"
+    )
+    derive.add_argument("ticker")
+    derive.add_argument("metric_key")
+    derive.add_argument("period_end")
+    derive.add_argument("--scope", default="{}", help="Exact input scope as a JSON object")
+    derive.set_defaults(handler=run_derive_metric)
+
+    validate = subcommands.add_parser(
+        "validate-metrics", help="Run scope, range, and calculation-lineage checks"
+    )
+    validate.add_argument("--ticker")
+    validate.set_defaults(handler=run_validate_metrics)
     return command
 
 
@@ -143,6 +159,34 @@ def run_configure_metrics(args: argparse.Namespace) -> int:
         export_excel(connection, settings.excel_path)
         print(f"Enabled {count} {args.metric_pack} metrics for {args.ticker.upper()}")
         return 0
+    finally:
+        connection.close()
+
+
+def run_derive_metric(args: argparse.Namespace) -> int:
+    settings, connection = database()
+    try:
+        scope = json.loads(args.scope)
+        if not isinstance(scope, dict):
+            raise ValueError("--scope must be a JSON object")
+        revision = derive_metric(
+            connection, ticker=args.ticker, metric_key=args.metric_key,
+            period_end=args.period_end, scope=scope,
+        )
+        export_excel(connection, settings.excel_path)
+        print(f"Derived {args.metric_key} for {args.ticker.upper()} at revision {revision}")
+        return 0
+    finally:
+        connection.close()
+
+
+def run_validate_metrics(args: argparse.Namespace) -> int:
+    settings, connection = database()
+    try:
+        count = validate_metrics(connection, args.ticker)
+        export_excel(connection, settings.excel_path)
+        print(f"Metric validation complete: {count} issue(s)")
+        return 0 if count == 0 else 2
     finally:
         connection.close()
 

@@ -80,8 +80,45 @@ observations retain metric definitions, scope, filing evidence, extraction metho
 and confidence for reliable model use:
 
 ```bash
-investor configure-metrics PBR upstream_oil
+investor configure-metrics PBR offshore_ep
+investor configure-metrics EOG shale_ep
 ```
+
+The `offshore_ep` pack adds FPSO throughput, capacity, utilization and uptime,
+water cut, production efficiency, lost production, project schedule/cost variance,
+field netback, and decommissioning obligations. The `shale_ep` pack instead adds
+base decline, wells turned to sales, well cost, IP90, normalized EUR, economic
+locations, and maintenance capital. Shared reserve, production, price, cost, and
+capex metrics remain defined once.
+
+Each observation must say whether it is `reported`, `derived`, or `estimated`.
+Reported values retain the filing accession, source URL, locator, evidence text,
+scope, and confidence. Derived values are calculated only from observations with
+the exact same period and scope. The calculation and every input observation ID
+are saved for audit.
+
+For example, after recording proved reserves and average daily production with the
+same scope, calculate reserve life deterministically:
+
+```bash
+investor derive-metric PBR reserve_life 2025-12-31 \
+  --scope '{"interest_basis":"net","product":"boe"}'
+```
+
+The calculator rejects missing inputs and incompatible units instead of silently
+converting ambiguous disclosures. Available deterministic calculations are reserve
+life, reserve replacement ratio, and FPSO utilization.
+
+Run data-quality checks after loading observations:
+
+```bash
+investor validate-metrics --ticker PBR
+```
+
+Checks currently cover required scope fields, plausible percentage ranges, and
+calculation lineage. Results are written to `metric_quality_issues` and the
+`Metric Quality Issues` Excel worksheet. A nonzero issue count returns exit code 2
+so scheduled jobs can route the data to review before model use.
 
 Use the actual feed URLs published by each source. Keeping these configurable avoids
 embedding an unstable URL or assuming redistribution rights for commercial news.

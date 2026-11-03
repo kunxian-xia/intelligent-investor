@@ -34,6 +34,8 @@ TABLES = {
                            ORDER BY ticker, concept, end_date DESC""",
     "Metric Definitions": """SELECT * FROM operating_metric_definitions
                                ORDER BY metric_pack, metric_key""",
+    "Metric Pack Members": """SELECT * FROM metric_pack_members
+                                  ORDER BY metric_pack, metric_key""",
     "Company Metric Config": """SELECT c.ticker, c.metric_key, d.display_name,
                                          d.metric_pack, c.enabled, c.notes
                                   FROM company_metric_config c
@@ -45,10 +47,24 @@ TABLES = {
                                      o.value, o.unit, o.scope_json, o.filed_date,
                                      o.accession_number, o.source_url, o.evidence_text,
                                      o.source_locator, o.extraction_method, o.confidence,
-                                     o.definition_version
+                                     o.definition_version, o.value_status,
+                                     o.calculation_json
                               FROM operating_metric_observations o
                               JOIN operating_metric_definitions d USING(metric_key)
                               ORDER BY o.ticker, o.metric_key, o.period_end DESC""",
+    "Metric Calculation Inputs": """SELECT i.derived_observation_id,
+                                               d.ticker, d.metric_key AS derived_metric,
+                                               i.input_role, i.input_observation_id,
+                                               x.metric_key AS input_metric, x.value, x.unit,
+                                               x.period_end, x.scope_json
+                                        FROM metric_calculation_inputs i
+                                        JOIN operating_metric_observations d
+                                          ON d.id=i.derived_observation_id
+                                        JOIN operating_metric_observations x
+                                          ON x.id=i.input_observation_id
+                                        ORDER BY d.ticker, d.metric_key, d.period_end""",
+    "Metric Quality Issues": """SELECT * FROM metric_quality_issues
+                                  ORDER BY ticker, period_end DESC, metric_key, severity""",
     "Latest Sources": "SELECT * FROM source_items ORDER BY published_at DESC",
 }
 

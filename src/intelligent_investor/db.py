@@ -109,6 +109,12 @@ CREATE TABLE IF NOT EXISTS company_metric_config (
     PRIMARY KEY(ticker, metric_key)
 );
 
+CREATE TABLE IF NOT EXISTS metric_pack_members (
+    metric_pack TEXT NOT NULL,
+    metric_key TEXT NOT NULL REFERENCES operating_metric_definitions(metric_key),
+    PRIMARY KEY(metric_pack, metric_key)
+);
+
 CREATE TABLE IF NOT EXISTS operating_metric_observations (
     id INTEGER PRIMARY KEY,
     ticker TEXT NOT NULL,
@@ -133,6 +139,29 @@ CREATE TABLE IF NOT EXISTS operating_metric_observations (
 
 CREATE INDEX IF NOT EXISTS idx_operating_metrics_lookup
 ON operating_metric_observations(ticker, metric_key, period_end DESC);
+
+CREATE TABLE IF NOT EXISTS metric_calculation_inputs (
+    derived_observation_id INTEGER NOT NULL
+        REFERENCES operating_metric_observations(id) ON DELETE CASCADE,
+    input_observation_id INTEGER NOT NULL
+        REFERENCES operating_metric_observations(id),
+    input_role TEXT NOT NULL,
+    PRIMARY KEY(derived_observation_id, input_observation_id, input_role)
+);
+
+CREATE TABLE IF NOT EXISTS metric_quality_issues (
+    id INTEGER PRIMARY KEY,
+    observation_id INTEGER REFERENCES operating_metric_observations(id)
+        ON DELETE CASCADE,
+    ticker TEXT NOT NULL,
+    metric_key TEXT NOT NULL,
+    period_end TEXT NOT NULL,
+    severity TEXT NOT NULL CHECK(severity IN ('error', 'warning')),
+    rule_key TEXT NOT NULL,
+    message TEXT NOT NULL,
+    checked_at TEXT NOT NULL,
+    UNIQUE(observation_id, rule_key)
+);
 
 CREATE TABLE IF NOT EXISTS exports (
     path TEXT PRIMARY KEY,
@@ -220,6 +249,14 @@ def initialize(connection: sqlite3.Connection) -> None:
     _ensure_column(connection, "facts", "observation_key", "TEXT")
     _ensure_column(connection, "facts", "statement", "TEXT")
     _ensure_column(connection, "facts", "standardized_metric", "TEXT")
+    _ensure_column(connection, "operating_metric_definitions", "formula", "TEXT")
+    _ensure_column(
+        connection, "operating_metric_definitions", "required_scope_json", "TEXT NOT NULL DEFAULT '[]'"
+    )
+    _ensure_column(
+        connection, "operating_metric_observations", "value_status", "TEXT NOT NULL DEFAULT 'reported'"
+    )
+    _ensure_column(connection, "operating_metric_observations", "calculation_json", "TEXT")
     connection.execute(
         "UPDATE facts SET observation_key = 'legacy-' || id WHERE observation_key IS NULL"
     )
